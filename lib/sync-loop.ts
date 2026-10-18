@@ -1,9 +1,9 @@
-﻿import { syncPremierLeague } from "@/lib/sync";
+import { syncPremierLeague } from "@/lib/sync";
 
 const g = globalThis as unknown as { __syncStarted?: boolean };
 
 export function startSyncLoop() {
-  if (g.__syncStarted || !process.env.FOOTBALL_DATA_TOKEN) return;
+  if (g.__syncStarted || process.env.VERCEL || !process.env.FOOTBALL_DATA_TOKEN) return;
   g.__syncStarted = true;
 
   const run = async () => {
