@@ -92,33 +92,47 @@ jobs:
           cache-from: type=gha,scope=ml
           cache-to: type=gha,mode=max,scope=ml
 
-  deploy:
-    name: Migrations et déploiement
+
+  migrate:
+    name: Migrations de la base de production
     needs: docker
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      RENDER_WEB_HOOK: ${{ secrets.RENDER_WEB_HOOK }}
-      RENDER_ML_HOOK: ${{ secrets.RENDER_ML_HOOK }}
-      APP_URL: ${{ secrets.APP_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Migrations Prisma sur la base de production
+      - name: Migrations Prisma
         if: env.DATABASE_URL != ''
         run: |
           npm ci
           npx prisma migrate deploy
-      - name: Déployer le modèle ML
-        if: env.RENDER_ML_HOOK != ''
-        run: curl -fsS "$RENDER_ML_HOOK"
-      - name: Déployer l'application web
-        if: env.RENDER_WEB_HOOK != ''
-        run: curl -fsS "$RENDER_WEB_HOOK"
-      - name: Vérification après déploiement
-        if: env.APP_URL != ''
-        run: curl -fsS --max-time 30 --retry 20 --retry-delay 15 --retry-all-errors "$APP_URL/manifest.webmanifest"
+
+  deploy-ml:
+    name: Déploiement du service ML (Hugging Face Spaces)
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ secrets.HF_SPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publier le conteneur ML sur le Space
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        run: |
+          git clone "https://${HF_SPACE%%/*}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" hf
+          cp ml/app.py ml/model.json ml/team_stats.json hf/
+          cp ml/Dockerfile.hf hf/Dockerfile
+          cp ml/README.hf.md hf/README.md
+          cd hf
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Aucun changement"; exit 0; fi
+          git commit -m "Deploy ${GITHUB_SHA}"
+          git push
