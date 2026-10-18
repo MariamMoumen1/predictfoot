@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+}
+
+enum Outcome {
+  HOME
+  DRAW
+  AWAY
+}
+
+model User {
+  id          String         @id @default(cuid())
+  name        String
+  username    String         @unique
+  email       String         @unique
+  password    String
+  avatar      String?
+  points      Int            @default(0)
+  createdAt   DateTime       @default(now())
+  predictions Prediction[]
+  memberships LeagueMember[]
+  badges      UserBadge[]
+  leaguesOwned League[]
+}
+
+model Team {
+  id      Int     @id @default(autoincrement())
+  name    String  @unique
+  logo    String?
+  elo     Float   @default(1500)
+  attack  Float   @default(1.0)
+  defense Float   @default(1.0)
+  homeMatches Match[] @relation("home")
+  awayMatches Match[] @relation("away")
+}
+
+model Match {
+  id          Int          @id @default(autoincrement())
+  externalId  Int?         @unique
+  league      String
+  homeId      Int
+  awayId      Int
+  home        Team         @relation("home", fields: [homeId], references: [id])
+  away        Team         @relation("away", fields: [awayId], references: [id])
+  kickoff     DateTime
+  status      MatchStatus  @default(SCHEDULED)
+  homeScore   Int?
+  awayScore   Int?
+  aiHome      Float?
+  aiDraw      Float?
+  aiAway      Float?
+  predictions Prediction[]
+}
+
+model Prediction {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  matchId   Int
+  outcome   Outcome
+  homeScore Int?
+  awayScore Int?
+  points    Int?
+  isCorrect Boolean?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  match     Match    @relation(fields: [matchId], references: [id])
+
+  @@unique([userId, matchId])
+}
+
+model League {
+  id      Int            @id @default(autoincrement())
+  name    String
+  code    String         @unique
+  ownerId String
+  owner   User           @relation(fields: [ownerId], references: [id])
+  members LeagueMember[]
+}
+
+model LeagueMember {
+  userId   String
+  leagueId Int
+  user     User   @relation(fields: [userId], references: [id])
+  league   League @relation(fields: [leagueId], references: [id])
+
+  @@id([userId, leagueId])
+}
+
+model Badge {
+  id          Int         @id @default(autoincrement())
+  code        String      @unique
+  name        String
+  description String
+  users       UserBadge[]
+}
+
+model UserBadge {
+  userId   String
+  badgeId  Int
+  earnedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id])
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+
+  @@id([userId, badgeId])
+}
