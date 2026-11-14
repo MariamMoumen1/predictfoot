@@ -45,3 +45,8 @@ next-env.d.ts
 ml/venv/
 ml/__pycache__/
 ml/model.joblib
+
+!.env.example
+
+AGENTS.md
+CLAUDE.md
